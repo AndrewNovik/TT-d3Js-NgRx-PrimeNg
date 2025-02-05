@@ -1,77 +1,215 @@
 <p-toast />
 
-<ul *ngIf="uploadedFilesShow.length; else uploadFiles">
-  <li *ngFor="let file of uploadedFilesShow; let index = index">
-    <span>{{ file.filename }}</span
-    ><br />
-    <ul *ngIf="file.data; else noData">
-      <li *ngFor="let dataItem of file.data">
-        {{ dataItem.category }} - {{ dataItem.value }}
-      </li>
-    </ul>
-    <button
-      icon="pi pi-ban"
-      pButton
-      type="button"
-      label="Удалить"
-      (click)="removeFile(index)"
-    ></button>
-    <app-pie-chart [data]="uploadedFiles[index].data || []"></app-pie-chart>
-    <app-bar-chart [data]="uploadedFiles[index].data || []"></app-bar-chart>
-  </li>
-</ul>
+<p-fileupload
+  #uploader
+  (onSelect)="onSelect($event)"
+  [chooseLabel]="uploadConfig.chooseLabel"
+  [uploadLabel]="uploadConfig.uploadAllLabel"
+  [cancelLabel]="uploadConfig.cancelLabel"
+  [multiple]="true"
+  [customUpload]="true"
+  (uploadHandler)="onUpload($event)"
+  [accept]="uploadConfig.accept"
+  [maxFileSize]="uploadConfig.maxFileSize"
+  [mode]="uploadConfig.mode"
+  [fileLimit]="uploadConfig.fileLimit"
+  [invalidFileLimitMessageSummary]="uploadConfig.invalidFileLimitMessageSummary"
+  [invalidFileLimitMessageDetail]="uploadConfig.invalidFileLimitMessageDetail"
+  [invalidFileSizeMessageSummary]="uploadConfig.invalidFileSizeMessageSummary"
+  [invalidFileSizeMessageDetail]="uploadConfig.invalidFileSizeMessageDetail"
+>
+  <ng-template #empty>
+    <div>Выберите файлы.</div>
+  </ng-template>
 
-<ng-template #uploadFiles>
-  <p-fileupload
-    #uploader
-    (onSelect)="onSelect($event)"
-    [chooseLabel]="uploadConfig.chooseLabel"
-    [uploadLabel]="uploadConfig.uploadAllLabel"
-    [cancelLabel]="uploadConfig.cancelLabel"
-    [multiple]="true"
-    [customUpload]="true"
-    (uploadHandler)="onUpload($event)"
-    [accept]="uploadConfig.accept"
-    [maxFileSize]="uploadConfig.maxFileSize"
-    [mode]="uploadConfig.mode"
-    [fileLimit]="uploadConfig.fileLimit"
-    [invalidFileLimitMessageSummary]="
-      uploadConfig.invalidFileLimitMessageSummary
-    "
-    [invalidFileLimitMessageDetail]="uploadConfig.invalidFileLimitMessageDetail"
-    [invalidFileSizeMessageSummary]="uploadConfig.invalidFileSizeMessageSummary"
-    [invalidFileSizeMessageDetail]="uploadConfig.invalidFileSizeMessageDetail"
+  <ng-template
+    #header
+    let-files
+    let-chooseCallback="chooseCallback"
+    let-clearCallback="clearCallback"
+    let-uploadCallback="uploadCallback"
   >
-    <ng-template #empty>
-      <div>Выберите файлы.</div>
-    </ng-template>
+    <div class="flex flex-wrap justify-content-start items-center flex-1 gap-4">
+      <div class="flex gap-2">
+        <p-button
+          (onClick)="choose(chooseCallback)"
+          icon="pi pi-plus"
+          label="Выбрать файлы"
+        />
+        <p-button
+          (onClick)="uploadEvent(uploadCallback)"
+          icon="pi pi-cloud-upload"
+          label="Загрузить все"
+          severity="secondary"
+          [disabled]="!files || files.length === 0"
+        />
+        <p-button
+          (onClick)="clearCallback()"
+          icon="pi pi-times"
+          label="Отмена"
+          severity="danger"
+          [disabled]="!files || files.length === 0"
+        />
+      </div>
 
-    <ng-template #file></ng-template>
+      <p-dropdown
+        [options]="(uploadState$ | async)?.files"
+        (onChange)="selectFileFromStore($event)"
+        optionLabel="name"
+        [filter]="true"
+        filterBy="name"
+        [showClear]="true"
+        [autoOptionFocus]="false"
+        placeholder="Загрузки"
+        tooltip="Список ранее загруженных файлов"
+        tooltipPosition="left"
+        panelStyleClass="dropdown-overlay"
+        [maxlength]="400"
+      >
+        <!--Подгруженные файлы-->
+        <ng-template let-file pTemplate="item">
+          <div
+            class="flex align-items-center gap-2 justify-content-between w-full"
+          >
+            <div>{{ file.name }}</div>
+            <div>
+              <button
+                icon="pi pi-ban"
+                label="Удалить"
+                pButton
+                severity="danger"
+                type="button"
+                (click)="$event.stopPropagation(); removeFileFromStore(file)"
+              ></button>
+            </div>
+          </div>
+        </ng-template>
+        <ng-template pTemplate="footer">
+          <div class="flex justify-content-center">
+            <button
+              class="my-3"
+              *ngIf="(uploadState$ | async)?.files?.length"
+              icon="pi pi-ban"
+              pButton
+              severity="warn"
+              type="button"
+              label="Очистить лист загрузок"
+              (click)="resetStore()"
+            ></button>
+          </div>
+        </ng-template>
+      </p-dropdown>
+    </div>
+  </ng-template>
 
-    <ng-template #content let-files let-removeFileCallback="removeFileCallback">
-      <ul *ngIf="files.length > 0">
-        <li *ngFor="let file of files; let index = index">
-          <div *ngIf="file | parseJsonFile as jsonFile">
-            <span>Файл: {{ jsonFile.filename }}</span>
-            <br />
-            <span>Данные:</span>
-            <ul *ngIf="jsonFile.data; else noData">
-              <li *ngFor="let dataItem of jsonFile.data">
-                {{ dataItem.category }} - {{ dataItem.value }}
-              </li>
-            </ul>
+  <ng-template #file></ng-template>
 
-            <p-button
-              icon="pi pi-times"
-              (click)="removeFileCallback($event, index)"
-              severity="danger"
-              [label]="uploadConfig.cancelLabel"
-            />
+  <ng-template #content let-files let-removeFileCallback="removeFileCallback">
+    <div class="flex flex-column custom-border" *ngIf="files.length > 0">
+      <h3 class="pl-3">Предпросмотр файлов</h3>
+      <ul class="flex p-3">
+        <li
+          *ngFor="let file of files; let index = index"
+          class="list-none mr-3"
+        >
+          <div class="flex flex-column justify-content-between">
+            <div *ngIf="file | parseJsonFile as jsonFile">
+              <span>{{ jsonFile.filename }}</span>
+              <p-virtualscroller
+                *ngIf="jsonFile.data; else noData"
+                [items]="jsonFile.data"
+                [itemSize]="15"
+                scrollHeight="150px"
+                styleClass="border border-surface mt-2"
+              >
+                <ng-template #item let-item let-options>
+                  <div class="flex items-center p-1">
+                    {{ item.category }} - {{ item.value }}
+                  </div>
+                </ng-template>
+              </p-virtualscroller>
+            </div>
+            <div>
+              <button
+                class="mt-2"
+                icon="pi pi-ban"
+                pButton
+                severity="danger"
+                type="button"
+                label="Отменить загрузку"
+                (click)="removeFileCallback($event, index)"
+              ></button>
+            </div>
           </div>
         </li>
       </ul>
-    </ng-template>
-  </p-fileupload>
-</ng-template>
+    </div>
+  </ng-template>
+</p-fileupload>
 
-<ng-template #noData>Нет данных <br /></ng-template>
+<ng-template #noData><br />Нет данных <br /></ng-template>
+
+<div class="mt-3 p-3 custom-border" *ngIf="uploadedFilesShow.length">
+  <div class="flex align-items-center">
+    <h3 class="pl-3">Загруженные файлы</h3>
+    <button
+      class="p-2 ml-3"
+      icon="pi pi-ban"
+      pButton
+      type="button"
+      severity="danger"
+      label="Удалить все"
+      (click)="removeFile()"
+    ></button>
+  </div>
+
+  <ul class="pl-3">
+    <li
+      *ngFor="let file of uploadedFilesShow; let index = index"
+      class="list-none"
+    >
+      <div class="custom-border flex justify-content-start p-3 mb-2">
+        <div class="flex flex-column justify-content-between">
+          <div>
+            <span>{{ file.filename }}</span>
+            <p-virtualscroller
+              [items]="file.data"
+              [itemSize]="15"
+              scrollHeight="150px"
+              styleClass="border border-surface mt-2"
+            >
+              <ng-template #item let-item let-options>
+                <div class="flex items-center p-1">
+                  {{ item.category }} - {{ item.value }}
+                </div>
+              </ng-template>
+            </p-virtualscroller>
+          </div>
+          <div>
+            <button
+              class="mt-2"
+              icon="pi pi-ban"
+              pButton
+              type="button"
+              label="Удалить"
+              severity="danger"
+              (click)="removeFile(index)"
+            ></button>
+          </div>
+        </div>
+        <div class="flex align-items-start ml-6">
+          <div class="px-4">
+            <app-pie-chart
+              [data]="uploadedFiles[index].data || []"
+            ></app-pie-chart>
+          </div>
+          <div class="px-4">
+            <app-bar-chart
+              [data]="uploadedFiles[index].data || []"
+            ></app-bar-chart>
+          </div>
+        </div>
+      </div>
+    </li>
+  </ul>
+</div>
