@@ -5,16 +5,6 @@ export const uploadFiles = createAction(
   props<{ files: File[] }>()
 );
 
-export const uploadFileSuccess = createAction(
-  '[Upload] Upload File Success',
-  props<{ progress: number }>()
-);
-
-export const uploadFileFailure = createAction(
-  '[Upload] Upload File Failure',
-  props<{ error: string }>()
-);
-
 export const removeUploadedFileState = createAction(
   '[Upload] Remove File From Sore',
   props<{ file: File }>()

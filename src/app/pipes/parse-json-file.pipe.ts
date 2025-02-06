@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, inject, Pipe, PipeTransform } from '@angular/core';
-import { UploadedFile } from './types';
+import { UploadedFile } from '../types/uploads.types';
 
 @Pipe({
   name: 'parseJsonFile',
@@ -27,6 +27,7 @@ export class ParseJsonFilePipe implements PipeTransform {
           };
         }
 
+        // reader.onLoad - ассинхронная функция
         this.cd.markForCheck();
       };
     }

@@ -2,21 +2,22 @@
 
 <p-fileupload
   #uploader
-  (onSelect)="onSelect($event)"
+  (onSelect)="onSelect()"
+  (uploadHandler)="onUploadToStore($event)"
+  (onRemove)="deleteExtraMessageInstances()"
   [chooseLabel]="uploadConfig.chooseLabel"
   [uploadLabel]="uploadConfig.uploadAllLabel"
   [cancelLabel]="uploadConfig.cancelLabel"
   [multiple]="true"
   [customUpload]="true"
-  (uploadHandler)="onUpload($event)"
-  [accept]="uploadConfig.accept"
-  [maxFileSize]="uploadConfig.maxFileSize"
   [mode]="uploadConfig.mode"
+  [accept]="uploadConfig.accept"
   [fileLimit]="uploadConfig.fileLimit"
-  [invalidFileLimitMessageSummary]="uploadConfig.invalidFileLimitMessageSummary"
-  [invalidFileLimitMessageDetail]="uploadConfig.invalidFileLimitMessageDetail"
-  [invalidFileSizeMessageSummary]="uploadConfig.invalidFileSizeMessageSummary"
+  [maxFileSize]="uploadConfig.maxFileSize"
   [invalidFileSizeMessageDetail]="uploadConfig.invalidFileSizeMessageDetail"
+  [invalidFileSizeMessageSummary]="uploadConfig.invalidFileSizeMessageSummary"
+  [invalidFileLimitMessageDetail]="uploadConfig.invalidFileLimitMessageDetail"
+  [invalidFileLimitMessageSummary]="uploadConfig.invalidFileLimitMessageSummary"
 >
   <ng-template #empty>
     <div>Выберите файлы.</div>
@@ -25,23 +26,28 @@
   <ng-template
     #header
     let-files
-    let-chooseCallback="chooseCallback"
     let-clearCallback="clearCallback"
+    let-chooseCallback="chooseCallback"
     let-uploadCallback="uploadCallback"
   >
-    <div class="flex flex-wrap justify-content-start items-center flex-1 gap-4">
+    <div class="flex flex-wrap justify-content-start gap-4">
       <div class="flex gap-2">
         <p-button
-          (onClick)="choose(chooseCallback)"
+          (onClick)="chooseCallback()"
           icon="pi pi-plus"
           label="Выбрать файлы"
+          [disabled]="files.length >= uploadConfig.fileLimit"
         />
         <p-button
-          (onClick)="uploadEvent(uploadCallback)"
+          (onClick)="uploadCallback()"
           icon="pi pi-cloud-upload"
           label="Загрузить все"
           severity="secondary"
-          [disabled]="!files || files.length === 0"
+          [disabled]="
+            !files ||
+            files.length === 0 ||
+            files.length > uploadConfig.fileLimit
+          "
         />
         <p-button
           (onClick)="clearCallback()"
@@ -53,18 +59,19 @@
       </div>
 
       <p-dropdown
-        [options]="(uploadState$ | async)?.files"
         (onChange)="selectFileFromStore($event)"
-        optionLabel="name"
-        [filter]="true"
         filterBy="name"
-        [showClear]="true"
-        [autoOptionFocus]="false"
+        optionLabel="name"
         placeholder="Загрузки"
-        tooltip="Список ранее загруженных файлов"
         tooltipPosition="left"
         panelStyleClass="dropdown-overlay"
-        [maxlength]="400"
+        emptyMessage="Список файлов пуст."
+        tooltip="Список ранее загруженных файлов"
+        emptyFilterMessage="Поиск не дал результатов."
+        [filter]="true"
+        [showClear]="true"
+        [autoOptionFocus]="false"
+        [options]="(uploadState$ | async)?.files"
       >
         <!--Подгруженные файлы-->
         <ng-template let-file pTemplate="item">
@@ -74,12 +81,12 @@
             <div>{{ file.name }}</div>
             <div>
               <button
+                (click)="$event.stopPropagation(); removeFileFromStore(file)"
                 icon="pi pi-ban"
                 label="Удалить"
                 pButton
                 severity="danger"
                 type="button"
-                (click)="$event.stopPropagation(); removeFileFromStore(file)"
               ></button>
             </div>
           </div>
@@ -87,6 +94,7 @@
         <ng-template pTemplate="footer">
           <div class="flex justify-content-center">
             <button
+              (click)="resetStore()"
               class="my-3"
               *ngIf="(uploadState$ | async)?.files?.length"
               icon="pi pi-ban"
@@ -94,7 +102,6 @@
               severity="warn"
               type="button"
               label="Очистить лист загрузок"
-              (click)="resetStore()"
             ></button>
           </div>
         </ng-template>
@@ -104,7 +111,12 @@
 
   <ng-template #file></ng-template>
 
-  <ng-template #content let-files let-removeFileCallback="removeFileCallback">
+  <ng-template
+    #content
+    let-files
+    let-chooseCallback="chooseCallback"
+    let-removeFileCallback="removeFileCallback"
+  >
     <div class="flex flex-column custom-border" *ngIf="files.length > 0">
       <h3 class="pl-3">Предпросмотр файлов</h3>
       <ul class="flex p-3">
@@ -113,8 +125,10 @@
           class="list-none mr-3"
         >
           <div class="flex flex-column justify-content-between">
+            <!--Асинхронный парсинг данных из json -->
             <div *ngIf="file | parseJsonFile as jsonFile">
               <span>{{ jsonFile.filename }}</span>
+
               <p-virtualscroller
                 *ngIf="jsonFile.data; else noData"
                 [items]="jsonFile.data"
@@ -129,15 +143,16 @@
                 </ng-template>
               </p-virtualscroller>
             </div>
+
             <div>
               <button
+                pButton
+                (click)="removeFileCallback($event, index)"
                 class="mt-2"
                 icon="pi pi-ban"
-                pButton
                 severity="danger"
                 type="button"
                 label="Отменить загрузку"
-                (click)="removeFileCallback($event, index)"
               ></button>
             </div>
           </div>
@@ -147,19 +162,17 @@
   </ng-template>
 </p-fileupload>
 
-<ng-template #noData><br />Нет данных <br /></ng-template>
-
 <div class="mt-3 p-3 custom-border" *ngIf="uploadedFilesShow.length">
   <div class="flex align-items-center">
     <h3 class="pl-3">Загруженные файлы</h3>
     <button
+      pButton
+      (click)="removeFileFromTemplate()"
       class="p-2 ml-3"
       icon="pi pi-ban"
-      pButton
       type="button"
       severity="danger"
       label="Удалить все"
-      (click)="removeFile()"
     ></button>
   </div>
 
@@ -172,10 +185,12 @@
         <div class="flex flex-column justify-content-between">
           <div>
             <span>{{ file.filename }}</span>
+
             <p-virtualscroller
               [items]="file.data"
               [itemSize]="15"
               scrollHeight="150px"
+              [style]="{ width: '200px' }"
               styleClass="border border-surface mt-2"
             >
               <ng-template #item let-item let-options>
@@ -187,13 +202,13 @@
           </div>
           <div>
             <button
+              pButton
+              (click)="removeFileFromTemplate(index)"
               class="mt-2"
               icon="pi pi-ban"
-              pButton
               type="button"
               label="Удалить"
               severity="danger"
-              (click)="removeFile(index)"
             ></button>
           </div>
         </div>
@@ -213,3 +228,5 @@
     </li>
   </ul>
 </div>
+
+<ng-template #noData><br />Нет данных <br /></ng-template>

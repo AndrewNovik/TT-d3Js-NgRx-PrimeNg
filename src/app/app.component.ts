@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   inject,
   ViewChild,
@@ -9,16 +10,16 @@ import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DropdownChangeEvent, DropdownModule } from 'primeng/dropdown';
 import { ToastModule } from 'primeng/toast';
+import { MessagesModule } from 'primeng/messages';
 import { ScrollerModule } from 'primeng/scroller';
 import {
-  FileSelectEvent,
   FileUpload,
   FileUploadHandlerEvent,
   FileUploadModule,
 } from 'primeng/fileupload';
-import { UploadConfig } from './consts';
-import { ParseJsonFilePipe } from './parse-json-file.pipe';
-import { UploadedFile } from './types';
+import { UploadConfig } from './consts/uploads.consts';
+import { ParseJsonFilePipe } from './pipes/parse-json-file.pipe';
+import { UploadedFile } from './types/uploads.types';
 
 import { PieChartComponent } from './pie-chart/pie-chart.component';
 import { BarChartComponent } from './bar-chart/bar-chart.component';
@@ -45,6 +46,7 @@ import { FormsModule } from '@angular/forms';
     DropdownModule,
     FormsModule,
     ScrollerModule,
+    MessagesModule,
   ],
   providers: [MessageService],
   templateUrl: './app.component.html',
@@ -52,45 +54,54 @@ import { FormsModule } from '@angular/forms';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {
-  uploadConfig = UploadConfig;
-
   @ViewChild('uploader', { static: false }) uploader?: FileUpload;
-  uploadedFiles: UploadedFile[] = [];
+
+  private readonly messageService: MessageService = inject(MessageService);
+  private readonly store$: Store<{ uploads: UploadState }> = inject(Store);
+  private readonly cd: ChangeDetectorRef = inject(ChangeDetectorRef);
+
+  public uploadState$: Observable<UploadState> = this.store$.select(
+    (state) => state.uploads
+  );
+  public uploadedFiles: UploadedFile[] = [];
+  public uploadConfig = UploadConfig;
 
   get uploadedFilesShow(): UploadedFile[] {
     return this.uploadedFiles;
   }
 
-  private readonly messageService: MessageService = inject(MessageService);
-  private readonly store$: Store<{ uploads: UploadState }> = inject(Store);
+  onSelect(): void {
+    // Столкнулся с проблемой, что невозможно убрать отображение всплывающих уведомлений о валидации лимита загружаемых файлов.
+    // https://github.com/primefaces/primeng/issues/13606 - свежий запрос от других разработчиков. Проблему не решают
+    // Т.е. если валидация на загрузку 5 файлов, а ты например загрузил 7 файлов, появится уведомление, удалили один, добавится еще одно уведомление,
+    // их компится бесконечное количество. Были комиты от разработчиков, что они забыли хук на remove - https://github.com/primefaces/primeng/pull/11834/files
+    // видимо, это не покрывает все случаи. И пришлось писать "костыль". И еще p-progressbar устанавливается по умолчанию и его тоже никак не убрать.
 
-  file: File | null = null;
-  selectedCountry: string | undefined;
+    // хук onSelect вызовет валидацию на количество файлов , но в ходе тестов понял, что
+    // рендер уведомлений и прогресс-бара случится позже, поэтому обнаруживаем изменения
 
-  uploadState$: Observable<UploadState> = this.store$.select(
-    (state) => state.uploads
-  );
+    this.cd.detectChanges();
 
-  onSelect(event: FileSelectEvent): void {
+    // и только после этого обращаюсь к коллекции, где будут созданы эти блоки
+    const uploaderChildBlocks = this.uploader?.content?.nativeElement
+      .children as HTMLCollection;
+
+    for (let block of uploaderChildBlocks) {
+      // пока удаляем только прогресс-бар
+      if (block.tagName === 'P-PROGRESSBAR') {
+        block.remove();
+      }
+    }
+
     this.messageService.add({
       severity: 'info',
       summary: 'Success',
       detail: 'Данные добавлены. Удалите ненужные файлы.',
-      life: 3000,
+      life: 2000,
     });
   }
 
-  choose(callback: () => void) {
-    callback();
-  }
-
-  uploadEvent(callback: () => void) {
-    callback();
-  }
-
-  onUpload(event: FileUploadHandlerEvent) {
-    console.log(event);
-
+  onUploadToStore(event: FileUploadHandlerEvent) {
     if (!event.files.length) return;
 
     const files: File[] = [];
@@ -117,6 +128,7 @@ export class AppComponent {
     this.store$.dispatch(uploadFiles({ files: files }));
 
     this.uploader?.clear();
+
     this.messageService.add({
       severity: 'info',
       summary: 'Success',
@@ -125,11 +137,12 @@ export class AppComponent {
     });
   }
 
-  removeFile(index?: number) {
-    if (!index) {
+  removeFileFromTemplate(index?: number) {
+    if (index !== 0 && !index) {
       this.uploadedFiles = [];
       return;
     }
+
     this.uploadedFiles.splice(index, 1);
   }
 
@@ -174,7 +187,19 @@ export class AppComponent {
       }
     };
   }
-  show(item: any) {
-    console.log(item);
+
+  deleteExtraMessageInstances() {
+    const uploaderChildBlocks = this.uploader?.content?.nativeElement
+      .children as HTMLCollection;
+
+    for (let block of uploaderChildBlocks) {
+      // теперь удаляем и меседжи
+      if (block.tagName === 'P-MESSAGE') {
+        block.remove();
+      }
+    }
+
+    // после этого хука все равно будет валидация количества файлов и 1 экземпляр сообщения в таком случае создастся.
+    // таким образом я решил бесконечную отрисовку новых сообщений о валидации.
   }
 }

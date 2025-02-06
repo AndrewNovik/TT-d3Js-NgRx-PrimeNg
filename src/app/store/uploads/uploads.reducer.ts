@@ -2,8 +2,6 @@ import { createReducer, on } from '@ngrx/store';
 import { initialUploadState } from './uploads.state';
 import {
   uploadFiles,
-  uploadFileSuccess,
-  uploadFileFailure,
   resetUploadState,
   removeUploadedFileState,
 } from './uploads.actions';
@@ -11,7 +9,6 @@ import {
 export const uploadReducer = createReducer(
   initialUploadState,
   on(uploadFiles, (state, { files }) => {
-    console.log(files);
     return {
       ...state,
       files: [...state.files, ...files],
@@ -20,18 +17,6 @@ export const uploadReducer = createReducer(
       success: false,
     };
   }),
-  on(uploadFileSuccess, (state, { progress }) => ({
-    ...state,
-    progress,
-    error: null,
-    success: progress === 100,
-  })),
-  on(uploadFileFailure, (state, { error }) => ({
-    ...state,
-    error,
-    progress: 0,
-    success: false,
-  })),
   on(removeUploadedFileState, (state, { file }) => ({
     ...state,
     files: [...state.files.filter((fileItem) => fileItem !== file)],

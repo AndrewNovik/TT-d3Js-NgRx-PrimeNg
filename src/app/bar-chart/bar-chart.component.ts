@@ -1,5 +1,5 @@
 import { Component, Input, ViewChild } from '@angular/core';
-import { FileData } from '../types';
+import { FileData } from '../types/uploads.types';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import * as d3 from 'd3';
 import { FormsModule } from '@angular/forms';
@@ -43,8 +43,8 @@ export class BarChartComponent {
     }
 
     const dataset = this.data.map((d) => d.value);
-    this.width = this.data.length * this.fontSize * 4;
-    this.height = Math.max(...dataset) * 1.5;
+    this.width = this.data.length * this.fontSize * 10;
+    this.height = Math.max(...dataset) * 1.2;
 
     this.svgChart = d3
       .select(this.svg.nativeElement)
@@ -59,10 +59,7 @@ export class BarChartComponent {
       .data(dataset)
       .enter()
       .append('rect')
-      .sort((a: any, b: any) => {
-        console.log(a, b);
-        return sortAscending ? d3.ascending(a, b) : -1;
-      })
+      .sort((a: any, b: any) => (sortAscending ? d3.ascending(a, b) : -1))
       .attr('x', (d: any, i: number) => i * (this.width / dataset.length))
       .attr('width', this.width / dataset.length - 1)
       .attr('y', (d: number) => this.height - d)
@@ -74,9 +71,9 @@ export class BarChartComponent {
       .data(this.data)
       .enter()
       .append('text')
-      .sort((a: any, b: any) => {
-        return sortAscending ? d3.ascending(a.value, b.value) : -1;
-      })
+      .sort((a: any, b: any) =>
+        sortAscending ? d3.ascending(a.value, b.value) : -1
+      )
       .text((d: { category: any; value: any }) => `${d.category} - ${d.value}`)
       .attr(
         'x',

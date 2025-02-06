@@ -1,11 +1,13 @@
 import { Component, Input, ViewChild } from '@angular/core';
 import * as d3 from 'd3';
-import { FileData } from '../types';
+import { FileData } from '../types/uploads.types';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-pie-chart',
+  imports: [ToggleSwitchModule, FormsModule],
+  standalone: true,
   template: `<div
       class="flex align-content-center justify-content-between py-2"
     >
@@ -17,23 +19,21 @@ import { FormsModule } from '@angular/forms';
     </div>
     <div class="custom-overflow " #svg></div>`,
   styles: ['.custom-overflow { overflow-x: scroll; max-width: 30vw}'],
-  imports: [ToggleSwitchModule, FormsModule],
-  standalone: true,
 })
 export class PieChartComponent {
   @Input('data') data: FileData[] = [];
   @ViewChild('svg', { static: true }) svg: any;
 
+  public isChartCreated: boolean = false;
   public sortAlphabetically = false;
   private svgChart: any;
   private pieChart: any;
   private mainArc: any;
   private labelArc: any;
   private arcs: any;
-
-  public isChartCreated: boolean = false;
-  private width = 250;
-  private height = 250;
+  private width = 300;
+  private height = 300;
+  private fontSize: number = 9;
   private colors: any;
   private radius = Math.min(this.width, this.height) / 2 - 50;
 
@@ -64,13 +64,14 @@ export class PieChartComponent {
 
   private drawChart(alfabeticalSort: boolean = false): void {
     if (this.isChartCreated) {
+      // если чарт уже был отрисован, то чтобы перерисовать его, предварительно его удаляем из DOM
       this.svgChart = d3.select(this.svg.nativeElement).select('svg').remove();
     }
 
-    // если файл с большим набором данных, чтобы не слипались значения
+    // если файл с большим набором данных
     if (this.data.length > 10) {
-      this.width = this.data.length * 20;
-      this.height = this.data.length * 20;
+      this.width = this.data.length * 25;
+      this.height = this.data.length * 25;
       this.radius = this.width / 2 - 50;
     }
 
@@ -81,23 +82,22 @@ export class PieChartComponent {
       .attr('height', this.height)
       .attr('class', 'pie-chart')
       .append('g')
-      .attr('viewBox', '0 0 500 500')
       .attr('transform', `translate(${this.width / 2},${this.height / 2})`);
 
     this.pieChart = d3
       .pie()
-      .sort((a: any, b: any) => {
-        return alfabeticalSort ? d3.ascending(a.category, b.category) : -1;
-      })
+      .sort((a: any, b: any) =>
+        alfabeticalSort ? d3.ascending(a.category, b.category) : -1
+      )
       .value((d: any) => d.value);
 
     this.arcs = this.pieChart(this.data as any);
 
     this.pieChart = d3
       .pie()
-      .sort((a: any, b: any) => {
-        return alfabeticalSort ? d3.ascending(a.category, b.category) : -1;
-      })
+      .sort((a: any, b: any) =>
+        alfabeticalSort ? d3.ascending(a.category, b.category) : -1
+      )
       .value((d: any) => d.value);
 
     this.mainArc = d3
@@ -135,6 +135,7 @@ export class PieChartComponent {
         const posC = this.labelArc.centroid(d); // Делаем копию
         const midangle = d.startAngle + (d.endAngle - d.startAngle) / 2; // вычесляем угол, чтобы узнать вправо рисовать продолжение линии или влево
         posC[0] = this.radius * 0.95 * (midangle < Math.PI ? 1 : -1); // меняем координату в зависимости от угла
+
         return [posA, posB, posC];
       });
 
@@ -150,6 +151,8 @@ export class PieChartComponent {
         pos[0] = this.radius * 0.95 * (midangle < Math.PI ? 1 : -1);
         return `translate(${pos})`;
       })
+      .attr('font-family', 'sans-serif')
+      .attr('font-size', `${this.fontSize}`)
       .style('text-anchor', (d: any) => {
         const midangle = d.startAngle + (d.endAngle - d.startAngle) / 2;
         return midangle < Math.PI ? 'start' : 'end';
